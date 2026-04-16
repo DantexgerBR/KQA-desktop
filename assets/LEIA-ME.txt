@@ -1,1 +1,0 @@
-Coloque aqui: icon.ico (256x256) e tray-icon.png (32x32)

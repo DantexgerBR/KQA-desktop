@@ -104,15 +104,6 @@ Dados salvos:
 
 ---
 
-## Ícone personalizado (opcional)
-
-1. Crie um `icon.ico` (256×256) e um `tray-icon.png` (32×32) na pasta `assets/`
-2. No `main.js`, descomente a linha `// icon: path.join(...)` na criação da BrowserWindow
-
-Sites para converter PNG → ICO: https://convertio.co/png-ico/
-
----
-
 ## Estrutura do projeto
 
 ```
