@@ -24,7 +24,11 @@ App desktop profissional para o sistema KQA, com mini-mode, persistência local,
 ### Pré-requisitos
 - [Node.js 18+](https://nodejs.org/)
 
-### Passos
+### Para rodar
+[Baixar última versão](https://github.com/DantexgerBR/KQA-desktop/releases)
+# Rodar o executável.
+
+### Para rodar sem executável
 
 ```bash
 # 1. Extraia o zip em uma pasta, ex: C:\KQA-Desktop\
