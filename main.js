@@ -1,6 +1,16 @@
 const { app, BrowserWindow, Menu, Tray, shell, globalShortcut, ipcMain, nativeImage, dialog, Notification } = require('electron')
 const path = require('path')
 
+// Auto-updater (GitHub Releases)
+let autoUpdater
+try {
+  autoUpdater = require('electron-updater').autoUpdater
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+} catch (e) {
+  console.warn('[KQA] electron-updater não disponível:', e.message)
+}
+
 // electron-store para persistência local
 let store
 try {
@@ -139,6 +149,16 @@ function createMiniWindow() {
     `)
   })
 
+  miniWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const isEscape = input.key === 'Escape'
+    const isCtrlW = (input.control || input.meta) && input.key.toLowerCase() === 'w'
+    if (isEscape || isCtrlW) {
+      event.preventDefault()
+      miniWindow?.close()
+    }
+  })
+
   miniWindow.on('closed', () => { miniWindow = null })
 }
 
@@ -190,18 +210,12 @@ function shortcutsHTML() {
       ]
     },
     {
-      title: '💾 Dados locais',
-      items: [
-        ['Ctrl + Shift + E', 'Gerenciar ambientes salvos'],
-        ['Ctrl + Shift + T', 'Gerenciar templates de comentário'],
-        ['Ctrl + Shift + S', 'Salvar estado atual'],
-      ]
-    },
-    {
       title: '❓ Ajuda',
       items: [
-        ['Ctrl + ?', 'Esta janela de atalhos'],
+        ['Ctrl + /', 'Esta janela de atalhos'],
+        ['Ctrl + Shift + H', 'Esta janela (global)'],
         ['Ctrl + Shift + O', 'Abrir KQA no navegador'],
+        ['Esc', 'Fechar mini-mode'],
       ]
     }
   ]
@@ -251,28 +265,35 @@ function injectStyles(win) {
 
 function injectFooterCredit(win) {
   win.webContents.executeJavaScript(`
-    function injectCredit() {
-      const footer = document.querySelector('footer') ||
-        [...document.querySelectorAll('div')].find(el =>
-          el.innerText && el.innerText.includes('QA Lead')
-        )
-      if (!footer) return setTimeout(injectCredit, 1000)
-      if (document.querySelector('.kqa-desktop-credit')) return
+    (function() {
+      let attempts = 0
+      const MAX_ATTEMPTS = 20
+      function injectCredit() {
+        const footer = document.querySelector('footer') ||
+          [...document.querySelectorAll('div')].find(el =>
+            el.innerText && el.innerText.includes('QA Lead')
+          )
+        if (!footer) {
+          if (++attempts >= MAX_ATTEMPTS) return
+          return setTimeout(injectCredit, 1000)
+        }
+        if (document.querySelector('.kqa-desktop-credit')) return
 
-      const style = document.createElement('style')
-      style.textContent = \`
-        .kqa-desktop-credit { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:#a0a0b0; font-family:monospace; }
-        .kqa-desktop-credit .dot { width:6px; height:6px; border-radius:50%; background:#c0397a; display:inline-block; }
-        .kqa-desktop-credit .role { color:#7070a0; font-size:11px; }
-      \`
-      document.head.appendChild(style)
+        const style = document.createElement('style')
+        style.textContent = \`
+          .kqa-desktop-credit { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:#a0a0b0; font-family:monospace; }
+          .kqa-desktop-credit .dot { width:6px; height:6px; border-radius:50%; background:#c0397a; display:inline-block; }
+          .kqa-desktop-credit .role { color:#7070a0; font-size:11px; }
+        \`
+        document.head.appendChild(style)
 
-      const credit = document.createElement('div')
-      credit.className = 'kqa-desktop-credit'
-      credit.innerHTML = '<span class="dot"></span><span>Dante de Oliveira Tavares</span><span class="role">🖥️ Estagiário de QA · Desktop v2</span>'
-      footer.appendChild(credit)
-    }
-    injectCredit()
+        const credit = document.createElement('div')
+        credit.className = 'kqa-desktop-credit'
+        credit.innerHTML = '<span class="dot"></span><span>Dante de Oliveira Tavares</span><span class="role">🖥️ Estagiário de QA · Desktop v2</span>'
+        footer.appendChild(credit)
+      }
+      injectCredit()
+    })()
   `)
 }
 
@@ -332,8 +353,7 @@ function createMenu() {
     {
       label: 'Modo',
       submenu: [
-        { label: 'Mini-mode (flutuante)', accelerator: 'CmdOrCtrl+Shift+M', click: () => createMiniWindow() },
-        { label: 'Abrir Artia em aba externa', accelerator: 'CmdOrCtrl+Shift+A', click: () => shell.openExternal('https://app.artia.com') }
+        { label: 'Mini-mode (flutuante)', accelerator: 'CmdOrCtrl+Shift+M', click: () => createMiniWindow() }
       ]
     },
     {
@@ -343,6 +363,21 @@ function createMenu() {
         { type: 'separator' },
         { label: 'Abrir KQA no navegador', accelerator: 'CmdOrCtrl+Shift+O', click: () => shell.openExternal('https://kqa.vercel.app/') },
         { label: 'Abrir pasta de dados locais', click: () => shell.openPath(app.getPath('userData')) },
+        { type: 'separator' },
+        { label: 'Verificar atualizações', click: async () => {
+          if (!autoUpdater || !app.isPackaged) {
+            dialog.showMessageBox(mainWindow, { type: 'info', title: 'Atualizações', message: 'Disponível apenas na versão instalada.' })
+            return
+          }
+          try {
+            const result = await autoUpdater.checkForUpdates()
+            if (!result?.updateInfo || result.updateInfo.version === app.getVersion()) {
+              dialog.showMessageBox(mainWindow, { type: 'info', title: 'Atualizações', message: 'Você já está na versão mais recente.' })
+            }
+          } catch (e) {
+            dialog.showMessageBox(mainWindow, { type: 'error', title: 'Atualizações', message: 'Falha ao verificar.', detail: e.message })
+          }
+        }},
         { type: 'separator' },
         { label: 'Sobre', click: () => {
           dialog.showMessageBox(mainWindow, {
@@ -377,7 +412,9 @@ function createTray() {
     tray.setToolTip('KQA Desktop')
     tray.setContextMenu(contextMenu)
     tray.on('double-click', () => { if (mainWindow) mainWindow.show(); else createMainWindow() })
-  } catch (e) { /* sem ícone, sem tray */ }
+  } catch (e) {
+    console.warn('[KQA] Tray init failed:', e.message)
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -398,6 +435,47 @@ function registerShortcuts() {
 
   // Atalhos de teclado
   globalShortcut.register('CommandOrControl+Shift+H', () => createShortcutsWindow())
+
+  // Abrir Artia
+  globalShortcut.register('CommandOrControl+Shift+A', () => shell.openExternal('https://app.artia.com'))
+
+  // Abrir KQA no navegador
+  globalShortcut.register('CommandOrControl+Shift+O', () => shell.openExternal('https://kqa.vercel.app/'))
+}
+
+// ─────────────────────────────────────────────
+// AUTO-UPDATE
+// ─────────────────────────────────────────────
+function setupAutoUpdate() {
+  if (!autoUpdater || !app.isPackaged) return
+
+  autoUpdater.on('update-available', (info) => {
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'KQA Desktop — atualização disponível',
+        body: `Versão ${info.version} sendo baixada em segundo plano…`
+      }).show()
+    }
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['Reiniciar agora', 'Depois'],
+      defaultId: 0,
+      title: 'Atualização pronta',
+      message: `KQA Desktop ${info.version} foi baixada.`,
+      detail: 'Reinicie para aplicar a atualização.'
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.warn('[KQA] update error:', err?.message || err)
+  })
+
+  autoUpdater.checkForUpdates().catch(() => { /* offline / sem release */ })
 }
 
 // ─────────────────────────────────────────────
@@ -408,6 +486,7 @@ app.whenReady().then(() => {
   createMenu()
   createTray()
   registerShortcuts()
+  setupAutoUpdate()
 })
 
 app.on('window-all-closed', () => {

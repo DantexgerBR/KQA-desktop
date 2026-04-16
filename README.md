@@ -61,6 +61,8 @@ O instalador aparece em `dist/`. Funciona em qualquer Windows sem Node.js.
 | `Ctrl + Shift + K` | Trazer KQA à frente |
 | `Ctrl + Shift + M` | Abrir / fechar Mini-mode |
 | `Ctrl + Shift + H` | Abrir guia de atalhos |
+| `Ctrl + Shift + A` | Abrir Artia |
+| `Ctrl + Shift + O` | Abrir KQA no navegador |
 
 ### Dentro do app
 
@@ -76,6 +78,23 @@ O instalador aparece em `dist/`. Funciona em qualquer Windows sem Node.js.
 | `Ctrl + /` | Guia de atalhos |
 | `Ctrl + Shift + A` | Abrir Artia |
 | `Ctrl + Shift + O` | Abrir KQA no navegador |
+| `Esc` / `Ctrl + W` | Fechar mini-mode (quando focado) |
+
+---
+
+## Atualizações automáticas
+
+Na versão instalada, o app verifica automaticamente no GitHub Releases se há uma versão mais nova. Quando há, baixa em segundo plano e pergunta se deseja reiniciar para aplicar. Também é possível disparar manualmente pelo menu **Ajuda → Verificar atualizações**.
+
+Para publicar uma nova versão com suporte a auto-update:
+
+```bash
+# variável de ambiente com um token do GitHub (classic, scope "repo")
+$env:GH_TOKEN="ghp_..."
+npm run build:win -- --publish always
+```
+
+Isso envia o instalador e o `latest.yml` para um release do GitHub, que o auto-updater dos clientes consulta.
 
 ---
 
