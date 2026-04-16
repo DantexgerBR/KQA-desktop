@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+
+# logs
+*.log
+npm-debug.log*
+
+# sistema
+.DS_Store
+Thumbs.db
+
+# electron
+out/
+
+# env
+.env

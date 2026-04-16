@@ -1,0 +1,33 @@
+{
+  "name": "kqa-desktop",
+  "version": "2.0.0",
+  "description": "KQA - Gerador de Dados para QA (App Desktop)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.kqa.desktop",
+    "productName": "KQA Desktop",
+    "copyright": "Sistema KQA",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KQA Desktop"
+    }
+  },
+  "devDependencies": {
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  }
+}
