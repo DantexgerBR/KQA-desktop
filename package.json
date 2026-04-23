@@ -5,7 +5,13 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win --x64"
+    "build:win": "electron-builder --win --x64",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "release:patch": "npm version patch -m \"Release v%s\" && git push && git push --tags",
+    "release:minor": "npm version minor -m \"Release v%s\" && git push && git push --tags",
+    "release:major": "npm version major -m \"Release v%s\" && git push && git push --tags"
   },
   "build": {
     "appId": "com.kqa.desktop",
@@ -31,8 +37,12 @@
     ]
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "electron": "^41.2.1",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0"
   },
   "dependencies": {
     "electron-store": "^8.1.0",

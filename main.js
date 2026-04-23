@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, Tray, shell, globalShortcut, ipcMain, nativeImage, dialog, Notification } = require('electron')
 const path = require('path')
+const fs = require('fs')
 
 // ─────────────────────────────────────────────
 // SINGLE INSTANCE LOCK
@@ -173,7 +174,7 @@ function createMainWindow() {
     const z = Number(store.get('zoomFactor', 1)) || 1
     mainWindow.webContents.setZoomFactor(Math.min(Math.max(z, 0.5), 2))
     injectStyles(mainWindow)
-    injectFooterCredit(mainWindow)
+    injectDesktopExtras(mainWindow)
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -312,36 +313,149 @@ function injectStyles(win) {
   `)
 }
 
-function injectFooterCredit(win) {
+function loadProfileDataUrl() {
+  try {
+    const profilePath = path.join(__dirname, 'assets', 'dante-profile.png')
+    if (!fs.existsSync(profilePath)) return ''
+    const buf = fs.readFileSync(profilePath)
+    return `data:image/png;base64,${buf.toString('base64')}`
+  } catch (e) {
+    console.warn(`${LOG_PREFIX} falha ao carregar dante-profile.png:`, e.message)
+    return ''
+  }
+}
+
+function injectDesktopExtras(win) {
+  const profileUrl = loadProfileDataUrl()
+  const appVersion = app.getVersion()
+
   win.webContents.executeJavaScript(`
     (function() {
-      let attempts = 0
+      const PROFILE_URL = ${JSON.stringify(profileUrl)}
+      const APP_VERSION = ${JSON.stringify(appVersion)}
       const MAX_ATTEMPTS = 20
-      function injectCredit() {
-        const footer = document.querySelector('footer') ||
-          [...document.querySelectorAll('div')].find(el =>
-            el.innerText && el.innerText.includes('QA Lead')
-          )
-        if (!footer) {
-          if (++attempts >= MAX_ATTEMPTS) return
-          return setTimeout(injectCredit, 1000)
-        }
-        if (document.querySelector('.kqa-desktop-credit')) return
+      let profileAttempts = 0
+      let shortcutsAttempts = 0
 
+      if (!document.getElementById('kqa-desktop-styles')) {
         const style = document.createElement('style')
+        style.id = 'kqa-desktop-styles'
         style.textContent = \`
-          .kqa-desktop-credit { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:#a0a0b0; font-family:monospace; }
-          .kqa-desktop-credit .dot { width:6px; height:6px; border-radius:50%; background:#c0397a; display:inline-block; }
-          .kqa-desktop-credit .role { color:#7070a0; font-size:11px; }
+          .kqa-dante-profile {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 12px; padding: 6px 0;
+            font-family: monospace;
+          }
+          .kqa-dante-profile img, .kqa-dante-profile .avatar-fallback {
+            width: 42px; height: 42px; border-radius: 50%;
+            border: 2px solid #c0397a; object-fit: cover;
+            background: #1e1e35; flex-shrink: 0;
+          }
+          .kqa-dante-profile .avatar-fallback {
+            display: flex; align-items: center; justify-content: center;
+            color: #c0397a; font-weight: 700; font-size: 18px;
+          }
+          .kqa-dante-profile .info { display: flex; flex-direction: column; gap: 2px; }
+          .kqa-dante-profile .name {
+            font-size: 15px; color: #e0e0f0; font-weight: 600; letter-spacing: 0.2px;
+          }
+          .kqa-dante-profile .role {
+            font-size: 11px; color: #c0397a;
+          }
+          .kqa-shortcuts-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: transparent; border: 1px solid #c0397a;
+            color: #c0397a; border-radius: 6px;
+            padding: 8px 14px; margin-top: 10px;
+            cursor: pointer; font-family: monospace; font-size: 13px;
+            transition: background 0.15s, color 0.15s;
+          }
+          .kqa-shortcuts-btn:hover { background: #c0397a; color: #fff; }
+          .kqa-shortcuts-btn .kbd {
+            background: rgba(192, 57, 122, 0.15); padding: 1px 6px;
+            border-radius: 3px; font-size: 11px;
+          }
         \`
         document.head.appendChild(style)
-
-        const credit = document.createElement('div')
-        credit.className = 'kqa-desktop-credit'
-        credit.innerHTML = '<span class="dot"></span><span>Dante de Oliveira Tavares</span><span class="role">🖥️ Estagiário de QA · Desktop v2</span>'
-        footer.appendChild(credit)
       }
-      injectCredit()
+
+      function findKarlaBlock() {
+        const candidates = document.querySelectorAll('footer *, footer, [class*="credit" i], [class*="author" i], div, span, p')
+        for (const el of candidates) {
+          if (el.children.length > 6) continue
+          const text = (el.innerText || '').trim()
+          if (text.includes('Karla') && text.length < 160) return el
+        }
+        return [...document.querySelectorAll('div')].find((el) => {
+          const t = el.innerText || ''
+          return t.includes('QA Lead') && t.length < 200
+        })
+      }
+
+      function injectProfile() {
+        const legacy = document.querySelector('.kqa-desktop-credit')
+        if (legacy) legacy.remove()
+
+        if (document.querySelector('.kqa-dante-profile')) return
+
+        const anchor = findKarlaBlock()
+        if (!anchor) {
+          if (++profileAttempts >= MAX_ATTEMPTS) return
+          return setTimeout(injectProfile, 1000)
+        }
+
+        const wrap = document.createElement('div')
+        wrap.className = 'kqa-dante-profile'
+        const avatarHTML = PROFILE_URL
+          ? \`<img src="\${PROFILE_URL}" alt="Dante">\`
+          : '<div class="avatar-fallback">D</div>'
+        wrap.innerHTML = avatarHTML + \`
+          <div class="info">
+            <span class="name">Dante de Oliveira Tavares</span>
+            <span class="role">🖥️ Estagiário de QA · Desktop v\${APP_VERSION}</span>
+          </div>
+        \`
+        ;(anchor.parentElement || anchor).appendChild(wrap)
+      }
+
+      function findConfigsPanel() {
+        const headings = document.querySelectorAll('h1, h2, h3, h4, h5, [class*="title" i]')
+        for (const h of headings) {
+          const txt = (h.textContent || '').trim().toLowerCase()
+          if (/^configura[çc][õo]es?$/.test(txt) || txt === 'config' || txt === 'configs' || txt === 'settings' || txt === 'ajustes') {
+            return h.closest('section, article, [class*="config" i], [class*="setting" i]') || h.parentElement
+          }
+        }
+        const panels = document.querySelectorAll('[role="tabpanel"], [class*="panel" i], [class*="config" i], [class*="setting" i]')
+        for (const p of panels) {
+          const t = (p.textContent || '').toLowerCase()
+          if (t.includes('configura') || t.includes('ajuste')) return p
+        }
+        return null
+      }
+
+      function injectShortcutsButton() {
+        if (document.querySelector('.kqa-shortcuts-btn')) return
+        const panel = findConfigsPanel()
+        if (!panel) {
+          if (++shortcutsAttempts >= MAX_ATTEMPTS) return
+          return setTimeout(injectShortcutsButton, 1000)
+        }
+
+        const btn = document.createElement('button')
+        btn.className = 'kqa-shortcuts-btn'
+        btn.type = 'button'
+        btn.innerHTML = '<span>⌨</span><span>Atalhos de teclado</span><span class="kbd">Ctrl + /</span>'
+        btn.addEventListener('click', () => {
+          if (window.electronAPI && window.electronAPI.showShortcuts) {
+            window.electronAPI.showShortcuts()
+          }
+        })
+        panel.appendChild(btn)
+      }
+
+      injectProfile()
+      injectShortcutsButton()
     })()
   `)
 }

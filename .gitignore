@@ -15,3 +15,9 @@ out/
 
 # env
 .env
+
+# Claude Code
+.claude/
+
+# ESLint cache
+.eslintcache
