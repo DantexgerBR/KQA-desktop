@@ -1,6 +1,6 @@
 {
   "name": "kqa-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "KQA - Gerador de Dados para QA (App Desktop)",
   "main": "main.js",
   "scripts": {
