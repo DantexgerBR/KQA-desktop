@@ -342,25 +342,25 @@ function injectDesktopExtras(win) {
         style.id = 'kqa-desktop-styles'
         style.textContent = \`
           .kqa-dante-profile {
-            display: flex; align-items: center; gap: 12px;
-            margin-top: 12px; padding: 6px 0;
+            display: flex; align-items: center; gap: 14px;
+            margin-top: 14px; padding: 0;
             font-family: monospace;
           }
           .kqa-dante-profile img, .kqa-dante-profile .avatar-fallback {
-            width: 42px; height: 42px; border-radius: 50%;
+            width: 56px; height: 56px; border-radius: 50%;
             border: 2px solid #c0397a; object-fit: cover;
             background: #1e1e35; flex-shrink: 0;
           }
           .kqa-dante-profile .avatar-fallback {
             display: flex; align-items: center; justify-content: center;
-            color: #c0397a; font-weight: 700; font-size: 18px;
+            color: #c0397a; font-weight: 700; font-size: 22px;
           }
-          .kqa-dante-profile .info { display: flex; flex-direction: column; gap: 2px; }
+          .kqa-dante-profile .info { display: flex; flex-direction: column; gap: 4px; }
           .kqa-dante-profile .name {
-            font-size: 15px; color: #e0e0f0; font-weight: 600; letter-spacing: 0.2px;
+            font-size: 18px; color: #e0e0f0; font-weight: 600; letter-spacing: 0.2px;
           }
           .kqa-dante-profile .role {
-            font-size: 11px; color: #c0397a;
+            font-size: 12px; color: #c0397a;
           }
           .kqa-shortcuts-btn {
             display: inline-flex; align-items: center; gap: 8px;
@@ -380,7 +380,7 @@ function injectDesktopExtras(win) {
       }
 
       function findKarlaBlock() {
-        // Só procura em footers/rodapés para evitar matches espúrios em topo de página
+        // Procura elemento que contenha "Karla" E "QA Lead" — é o card inteiro dela
         const scopes = [
           ...document.querySelectorAll('footer'),
           ...document.querySelectorAll('[class*="footer" i]'),
@@ -388,23 +388,36 @@ function injectDesktopExtras(win) {
           ...document.querySelectorAll('[class*="author" i]'),
           ...document.querySelectorAll('[class*="team" i]')
         ]
+        const candidates = []
         const seen = new Set()
         for (const scope of scopes) {
           if (seen.has(scope)) continue
           seen.add(scope)
-          // Dentro do escopo, pega o menor elemento que contém "Karla"
-          const inner = [...scope.querySelectorAll('*')].filter((el) => {
+          const matches = [...scope.querySelectorAll('*')].filter((el) => {
             const t = (el.innerText || '').trim()
-            return t.includes('Karla') && t.length < 200 && el.children.length <= 4
+            return t.includes('Karla') && t.includes('QA Lead') && t.length < 300
           })
-          if (inner.length > 0) {
-            // Pega o mais profundo (menos filhos em geral)
-            inner.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)
-            return inner[0]
-          }
-          // Fallback: o próprio scope contém Karla?
-          const txt = (scope.innerText || '').trim()
-          if (txt.includes('Karla') && txt.length < 400) return scope
+          candidates.push(...matches)
+        }
+        if (candidates.length === 0) return null
+        // Pega o MENOR (mais específico = card da Karla, não o footer inteiro)
+        candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)
+        return candidates[0]
+      }
+
+      function findFlexRowAncestor(node) {
+        // Sobe até achar um ancestral com display:flex em linha (row)
+        let cur = node
+        for (let i = 0; i < 10 && cur && cur.parentElement; i++) {
+          const parent = cur.parentElement
+          try {
+            const s = getComputedStyle(parent)
+            const isFlex = s.display === 'flex' || s.display === 'inline-flex'
+            const isRow = !s.flexDirection || s.flexDirection.startsWith('row')
+            if (isFlex && isRow && parent.children.length > 1) return parent
+          } catch (e) { /* ignore */ }
+          cur = parent
+          if (cur.tagName === 'FOOTER' || cur.tagName === 'BODY') break
         }
         return null
       }
@@ -432,8 +445,11 @@ function injectDesktopExtras(win) {
             <span class="role">🖥️ Estagiário de QA · Desktop v\${APP_VERSION}</span>
           </div>
         \`
-        // Insere imediatamente após o bloco da Karla (mesmo nível no DOM)
-        anchor.insertAdjacentElement('afterend', wrap)
+        // Sobe até o container flex-row que tem o card da Karla como filho,
+        // insere depois dele (fica abaixo, não ao lado)
+        const row = findFlexRowAncestor(anchor)
+        const target = row || anchor
+        target.insertAdjacentElement('afterend', wrap)
       }
 
       function findConfigsPanel() {
