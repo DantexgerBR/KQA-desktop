@@ -380,16 +380,33 @@ function injectDesktopExtras(win) {
       }
 
       function findKarlaBlock() {
-        const candidates = document.querySelectorAll('footer *, footer, [class*="credit" i], [class*="author" i], div, span, p')
-        for (const el of candidates) {
-          if (el.children.length > 6) continue
-          const text = (el.innerText || '').trim()
-          if (text.includes('Karla') && text.length < 160) return el
+        // Só procura em footers/rodapés para evitar matches espúrios em topo de página
+        const scopes = [
+          ...document.querySelectorAll('footer'),
+          ...document.querySelectorAll('[class*="footer" i]'),
+          ...document.querySelectorAll('[class*="credit" i]'),
+          ...document.querySelectorAll('[class*="author" i]'),
+          ...document.querySelectorAll('[class*="team" i]')
+        ]
+        const seen = new Set()
+        for (const scope of scopes) {
+          if (seen.has(scope)) continue
+          seen.add(scope)
+          // Dentro do escopo, pega o menor elemento que contém "Karla"
+          const inner = [...scope.querySelectorAll('*')].filter((el) => {
+            const t = (el.innerText || '').trim()
+            return t.includes('Karla') && t.length < 200 && el.children.length <= 4
+          })
+          if (inner.length > 0) {
+            // Pega o mais profundo (menos filhos em geral)
+            inner.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)
+            return inner[0]
+          }
+          // Fallback: o próprio scope contém Karla?
+          const txt = (scope.innerText || '').trim()
+          if (txt.includes('Karla') && txt.length < 400) return scope
         }
-        return [...document.querySelectorAll('div')].find((el) => {
-          const t = el.innerText || ''
-          return t.includes('QA Lead') && t.length < 200
-        })
+        return null
       }
 
       function injectProfile() {
@@ -415,7 +432,8 @@ function injectDesktopExtras(win) {
             <span class="role">🖥️ Estagiário de QA · Desktop v\${APP_VERSION}</span>
           </div>
         \`
-        ;(anchor.parentElement || anchor).appendChild(wrap)
+        // Insere imediatamente após o bloco da Karla (mesmo nível no DOM)
+        anchor.insertAdjacentElement('afterend', wrap)
       }
 
       function findConfigsPanel() {
